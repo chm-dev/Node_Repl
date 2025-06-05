@@ -108,12 +108,18 @@ function createMenu() {
         { role: 'copy' },
         { role: 'paste' },
         { role: 'selectall' },
-        { type: 'separator' },
-        {
+        { type: 'separator' },        {
           label: 'Clear Output',
           accelerator: 'CmdOrCtrl+K',
           click: () => {
             mainWindow.webContents.send('menu-clear-output');
+          }
+        },
+        {
+          label: 'Format Code',
+          accelerator: 'Shift+Alt+F',
+          click: () => {
+            mainWindow.webContents.send('menu-format-code');
           }
         }
       ]
@@ -203,40 +209,58 @@ ipcMain.handle('execute-code', async (event, code) => {
   try {
     const vm = require('vm');
     const util = require('util');
-    
-    // Capture console output with line tracking
+      // Capture console output
     const logs = [];
     let currentLine = 1;
     
-    // Create a custom console that tracks line numbers
+    // Function to estimate line number from stack trace
+    function getCurrentLineFromStack() {
+      const stack = new Error().stack;
+      const lines = stack.split('\n');
+      // Look for the line that contains our eval context
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].includes('<anonymous>:')) {
+          const match = lines[i].match(/:(\d+):/);
+          if (match) {
+            // Subtract 3 to account for the wrapper function lines
+            return Math.max(1, parseInt(match[1]) - 3);
+          }
+        }
+      }
+      return currentLine;
+    }
+    
+    // Create a custom console
     const customConsole = {
       log: (...args) => {
         const message = args.map(arg => 
           typeof arg === 'object' ? util.inspect(arg, { colors: false, depth: 3 }) : String(arg)
         ).join(' ');
-        logs.push({ type: 'log', message, line: currentLine });
+        const lineNum = getCurrentLineFromStack();
+        logs.push({ type: 'log', message, line: lineNum });
       },
       error: (...args) => {
         const message = args.map(arg => 
           typeof arg === 'object' ? util.inspect(arg, { colors: false, depth: 3 }) : String(arg)
         ).join(' ');
-        logs.push({ type: 'error', message, line: currentLine });
+        const lineNum = getCurrentLineFromStack();
+        logs.push({ type: 'error', message, line: lineNum });
       },
       warn: (...args) => {
         const message = args.map(arg => 
           typeof arg === 'object' ? util.inspect(arg, { colors: false, depth: 3 }) : String(arg)
         ).join(' ');
-        logs.push({ type: 'warn', message, line: currentLine });
+        const lineNum = getCurrentLineFromStack();
+        logs.push({ type: 'warn', message, line: lineNum });
       },
       info: (...args) => {
         const message = args.map(arg => 
           typeof arg === 'object' ? util.inspect(arg, { colors: false, depth: 3 }) : String(arg)
         ).join(' ');
-        logs.push({ type: 'info', message, line: currentLine });
+        const lineNum = getCurrentLineFromStack();
+        logs.push({ type: 'info', message, line: lineNum });
       }
-    };
-
-    // Create execution context
+    };// Create execution context
     const context = vm.createContext({
       console: customConsole,
       require: require,
@@ -248,24 +272,18 @@ ipcMain.handle('execute-code', async (event, code) => {
       setTimeout: setTimeout,
       setInterval: setInterval,
       clearTimeout: clearTimeout,
-      clearInterval: clearInterval,
-      // Add line tracking function
-      __setCurrentLine: (line) => { currentLine = line; }
+      clearInterval: clearInterval
     });
 
-    // Parse code to add line tracking
-    const lines = code.split('\n');
-    const instrumentedCode = lines.map((line, index) => {
-      if (line.trim() && !line.trim().startsWith('//')) {
-        return `__setCurrentLine(${index + 1}); ${line}`;
-      }
-      return line;
-    }).join('\n');
-
-    // Execute the code
+    // Execute the code without line instrumentation to avoid syntax issues
     const result = vm.runInContext(`
       (async () => {
-        ${instrumentedCode}
+        try {
+          ${code}
+        } catch (error) {
+          console.error(error.message);
+          throw error;
+        }
       })()
     `, context, {
       timeout: 10000,

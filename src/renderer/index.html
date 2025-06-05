@@ -2,10 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Node REPL</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/monokai.min.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">    <title>Node REPL</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -30,16 +27,15 @@
         </div>
 
         <div class="main-content">
-            <div class="editor-panel">
-                <div class="panel-header">
+            <div class="editor-panel">                <div class="panel-header">
                     <h3>Code Editor</h3>
                     <div class="panel-controls">
+                        <button id="formatBtn" class="btn-icon" title="Format Code (Shift+Alt+F)">✨</button>
                         <button id="newFileBtn" class="btn-icon" title="New File">📄</button>
                         <button id="openFileBtn" class="btn-icon" title="Open File">📁</button>
                     </div>
-                </div>
-                <div class="editor-container">
-                    <textarea id="codeEditor"></textarea>
+                </div><div class="editor-container">
+                    <div id="monacoEditor"></div>
                 </div>
             </div>
 
@@ -63,18 +59,10 @@
             <div class="status-right">
                 <span id="cursorPosition">Ln 1, Col 1</span>
             </div>
-        </div>
-    </div>
+        </div>    </div>
 
-    <!-- Include CodeMirror -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/search/searchcursor.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/search/search.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/keymap/sublime.min.js"></script>
+    <!-- Include Monaco Editor -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
 
     <script src="app.js"></script>
 </body>

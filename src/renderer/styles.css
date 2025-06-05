@@ -139,34 +139,9 @@ body {
     position: relative;
 }
 
-.CodeMirror {
+#monacoEditor {
+    width: 100%;
     height: 100%;
-    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-    font-size: 14px;
-    line-height: 1.5;
-    background: #1e1e1e !important;
-    color: #d4d4d4;
-}
-
-.CodeMirror-focused .CodeMirror-cursor {
-    border-left: 2px solid #ffffff;
-}
-
-.CodeMirror-activeline-background {
-    background: rgba(255, 255, 255, 0.1) !important;
-}
-
-.CodeMirror-selected {
-    background: #264f78 !important;
-}
-
-.CodeMirror-gutters {
-    background: #1e1e1e !important;
-    border-right: 1px solid #3e3e42 !important;
-}
-
-.CodeMirror-linenumber {
-    color: #858585 !important;
 }
 
 /* Output Container */
@@ -216,13 +191,15 @@ body {
     color: #858585;
     font-size: 11px;
     margin-right: 8px;
+    display: none;
 }
 
 .output-line-info {
-    color: #4ec9b0;
+    color: #858585;
     font-size: 11px;
     margin-right: 8px;
-    font-weight: 500;
+    font-weight: 400;
+    opacity: 0.8;
 }
 
 /* Status Bar */

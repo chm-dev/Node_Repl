@@ -11,31 +11,13 @@ class NodeREPL {
         this.init();
         this.setupEventListeners();
         this.setupMenuListeners();
-    }
-
-    init() {
-        // Initialize CodeMirror editor
-        this.editor = CodeMirror.fromTextArea(document.getElementById('codeEditor'), {
-            mode: 'javascript',
-            theme: 'monokai',
-            lineNumbers: true,
-            autoCloseBrackets: true,
-            matchBrackets: true,
-            styleActiveLine: true,
-            keyMap: 'sublime',
-            extraKeys: {
-                'Ctrl-Enter': () => this.executeCode(),
-                'Cmd-Enter': () => this.executeCode(),
-                'Ctrl-Shift-Enter': () => this.executeSelection(),
-                'Cmd-Shift-Enter': () => this.executeSelection(),
-                'Ctrl-S': (cm) => this.saveFile(),
-                'Cmd-S': (cm) => this.saveFile(),
-                'Ctrl-K': () => this.clearOutput(),
-                'Cmd-K': () => this.clearOutput(),
-                'F5': () => this.executeCode()
-            }
-        });        // Set default content
-        this.editor.setValue(`// Welcome to Node REPL!
+    }    init() {
+        // Initialize Monaco Editor
+        require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
+        
+        require(['vs/editor/editor.main'], () => {
+            this.editor = monaco.editor.create(document.getElementById('monacoEditor'), {
+                value: `// Welcome to Node REPL!
 // Write your JavaScript code here and press Ctrl+Enter to execute
 
 console.log('Hello, World!');
@@ -70,32 +52,102 @@ async function example() {
 }
 
 // Execute this:
-example().then(console.log);`);
+example().then(console.log);`,
+                language: 'javascript',
+                theme: 'vs-dark',
+                fontSize: 14,
+                fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+                lineNumbers: 'on',
+                roundedSelection: false,
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+                minimap: { enabled: false },
+                folding: true,
+                lineDecorationsWidth: 10,
+                lineNumbersMinChars: 3,
+                renderWhitespace: 'boundary',
+                tabSize: 2,
+                insertSpaces: true,
+                wordWrap: 'on',
+                contextmenu: true,
+                mouseWheelZoom: true,
+                smoothScrolling: true,
+                cursorStyle: 'line',
+                cursorBlinking: 'blink',
+                renderLineHighlight: 'all',
+                selectOnLineNumbers: true,
+                glyphMargin: false,
+                fixedOverflowWidgets: true
+            });
 
-        // Update cursor position
-        this.editor.on('cursorActivity', () => {
-            const cursor = this.editor.getCursor();
-            this.cursorPosition.textContent = `Ln ${cursor.line + 1}, Col ${cursor.ch + 1}`;
+            // Add keyboard shortcuts
+            this.editor.addAction({
+                id: 'execute-code',
+                label: 'Execute Code',
+                keybindings: [
+                    monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter
+                ],
+                run: () => this.executeCode()
+            });
+
+            this.editor.addAction({
+                id: 'execute-selection',
+                label: 'Execute Selection',
+                keybindings: [
+                    monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Enter
+                ],
+                run: () => this.executeSelection()
+            });
+
+            this.editor.addAction({
+                id: 'save-file',
+                label: 'Save File',
+                keybindings: [
+                    monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS
+                ],
+                run: () => this.saveFile()
+            });            this.editor.addAction({
+                id: 'clear-output',
+                label: 'Clear Output',
+                keybindings: [
+                    monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK
+                ],
+                run: () => this.clearOutput()
+            });
+
+            this.editor.addAction({
+                id: 'format-code',
+                label: 'Format Code',
+                keybindings: [
+                    monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF
+                ],
+                run: () => this.formatCode()
+            });
+
+            // Update cursor position
+            this.editor.onDidChangeCursorPosition((e) => {
+                this.cursorPosition.textContent = `Ln ${e.position.lineNumber}, Col ${e.position.column}`;
+            });
+
+            // Track modifications
+            this.editor.onDidChangeModelContent(() => {
+                if (!this.isModified) {
+                    this.isModified = true;
+                    this.updateFileName();
+                }
+            });
+
+            this.updateStatus('Ready');
         });
-
-        // Track modifications
-        this.editor.on('change', () => {
-            if (!this.isModified) {
-                this.isModified = true;
-                this.updateFileName();
-            }
-        });
-
-        this.updateStatus('Ready');
     }
 
-    setupEventListeners() {
-        // Toolbar buttons
+    setupEventListeners() {        // Toolbar buttons
         document.getElementById('runBtn').addEventListener('click', () => this.executeCode());
         document.getElementById('clearBtn').addEventListener('click', () => this.clearOutput());
         document.getElementById('saveBtn').addEventListener('click', () => this.saveFile());
         document.getElementById('newFileBtn').addEventListener('click', () => this.newFile());
         document.getElementById('openFileBtn').addEventListener('click', () => this.openFile());
+        document.getElementById('formatBtn').addEventListener('click', () => this.formatCode());
         document.getElementById('clearOutputBtn').addEventListener('click', () => this.clearOutput());
 
         // Keyboard shortcuts for buttons
@@ -118,8 +170,8 @@ example().then(console.log);`);
             window.electronAPI.onMenuNewFile(() => this.newFile());
             window.electronAPI.onMenuOpenFile((event, data) => this.loadFile(data.path, data.content));
             window.electronAPI.onMenuSaveFile(() => this.saveFile());
-            window.electronAPI.onMenuSaveAsFile(() => this.saveAsFile());
-            window.electronAPI.onMenuClearOutput(() => this.clearOutput());
+            window.electronAPI.onMenuSaveAsFile(() => this.saveAsFile());            window.electronAPI.onMenuClearOutput(() => this.clearOutput());
+            window.electronAPI.onMenuFormatCode(() => this.formatCode());
             window.electronAPI.onMenuExecuteCode(() => this.executeCode());
             window.electronAPI.onMenuExecuteSelection(() => this.executeSelection());
         }
@@ -133,11 +185,9 @@ example().then(console.log);`);
             // Send code to main process for execution via IPC
             if (window.electronAPI && window.electronAPI.executeCode) {
                 const result = await window.electronAPI.executeCode(codeToExecute);
-                
-                if (!result.success) {
+                  if (!result.success) {
                     throw new Error(result.error);
-                }
-                  // Display console output
+                }                // Display console output
                 if (result.logs && result.logs.length > 0) {
                     result.logs.forEach(log => {
                         this.addOutput(log.type, log.message, log.line);
@@ -162,21 +212,19 @@ example().then(console.log);`);
             this.addOutput('error', error.message);
             this.updateStatus('Execution failed');
         }
-    }
-
-    async executeSelection() {
-        const selection = this.editor.getSelection();
+    }    async executeSelection() {
+        const selection = this.editor.getModel().getValueInRange(this.editor.getSelection());
         if (selection.trim()) {
             await this.executeCode(selection);
         } else {
             // Execute current line if no selection
-            const cursor = this.editor.getCursor();
-            const line = this.editor.getLine(cursor.line);
+            const position = this.editor.getPosition();
+            const line = this.editor.getModel().getLineContent(position.lineNumber);
             if (line.trim()) {
                 await this.executeCode(line);
             }
         }
-    }    async evaluateCode(code) {
+    }async evaluateCode(code) {
         // Send code to main process for execution via IPC
         if (window.electronAPI && window.electronAPI.executeCode) {
             try {
@@ -330,7 +378,7 @@ example().then(console.log);`);
         
         const lineInfo = document.createElement('span');
         lineInfo.className = 'output-line-info';
-        if (lineNumber) {
+        if (lineNumber && lineNumber > 0) {
             lineInfo.textContent = `Line ${lineNumber}`;
         }
         
@@ -338,21 +386,30 @@ example().then(console.log);`);
         contentSpan.textContent = content;
         
         entry.appendChild(timestamp);
-        if (lineNumber) {
+        if (lineNumber && lineNumber > 0) {
             entry.appendChild(lineInfo);
         }
         entry.appendChild(contentSpan);
         
         this.outputContainer.appendChild(entry);
         this.outputContainer.scrollTop = this.outputContainer.scrollHeight;
-    }
-
-    clearOutput() {
+    }clearOutput() {
         this.outputContainer.innerHTML = '';
         this.updateStatus('Output cleared');
     }
 
-    newFile() {
+    formatCode() {
+        if (!this.editor) return;
+        
+        try {
+            // Use Monaco Editor's built-in formatting action
+            this.editor.getAction('editor.action.formatDocument').run();
+            this.updateStatus('Code formatted');
+        } catch (error) {
+            console.error('Error formatting code:', error);
+            this.updateStatus('Format failed');
+        }
+    }newFile() {
         if (this.isModified && !confirm('Discard unsaved changes?')) {
             return;
         }
@@ -381,9 +438,7 @@ example().then(console.log);`);
             }
         };
         input.click();
-    }
-
-    loadFile(fileName, content) {
+    }    loadFile(fileName, content) {
         if (this.isModified && !confirm('Discard unsaved changes?')) {
             return;
         }

@@ -4,13 +4,15 @@ A powerful interactive Node.js REPL built with Electron, inspired by RunJS. This
 
 ## Features
 
-- **Interactive Code Editor**: Syntax highlighting, auto-completion, and multiple themes
+- **Interactive Code Editor**: Monaco Editor with syntax highlighting, auto-completion, and multiple themes
 - **Live Code Execution**: Execute JavaScript and Node.js code with real-time output
+- **Code Formatting**: Built-in code formatter with Prettier-style formatting
 - **File Management**: Create, open, save, and manage JavaScript files
 - **Modern UI**: Dark theme with professional layout similar to VS Code
 - **Keyboard Shortcuts**: Comprehensive shortcuts for productivity
 - **Error Handling**: Detailed error messages and stack traces
 - **Console Output**: Captured console.log, error, warn, and info messages
+- **Line Tracking**: Shows which line generated each output
 - **Cross-Platform**: Works on Windows, macOS, and Linux
 
 ## Installation
@@ -46,15 +48,17 @@ npm run build
 - `Ctrl+N` / `Cmd+N` - New file
 - `Ctrl+O` / `Cmd+O` - Open file
 - `Ctrl+K` / `Cmd+K` - Clear output
+- `Shift+Alt+F` - Format code
 - `F5` - Execute code
 
 ## Usage
 
-1. **Writing Code**: Use the left panel to write JavaScript/Node.js code
+1. **Writing Code**: Use the left panel to write JavaScript/Node.js code with Monaco Editor
 2. **Executing Code**: Press `Ctrl+Enter` to execute the entire code or `Ctrl+Shift+Enter` to execute selected text
-3. **Viewing Output**: The right panel shows execution results, console output, and errors
-4. **File Operations**: Use the toolbar or menu to create, open, and save files
-5. **Node.js Modules**: You can require and use any Node.js built-in modules
+3. **Formatting Code**: Press `Shift+Alt+F` or click the format button (✨) to format your code
+4. **Viewing Output**: The right panel shows execution results, console output, and errors with line tracking
+5. **File Operations**: Use the toolbar or menu to create, open, and save files
+6. **Node.js Modules**: You can require and use any Node.js built-in modules
 
 ## Example Code
 

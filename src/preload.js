@@ -13,8 +13,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onMenuNewFile: (callback) => ipcRenderer.on('menu-new-file', callback),
   onMenuOpenFile: (callback) => ipcRenderer.on('menu-open-file', callback),
   onMenuSaveFile: (callback) => ipcRenderer.on('menu-save-file', callback),
-  onMenuSaveAsFile: (callback) => ipcRenderer.on('menu-save-as-file', callback),
-  onMenuClearOutput: (callback) => ipcRenderer.on('menu-clear-output', callback),
+  onMenuSaveAsFile: (callback) => ipcRenderer.on('menu-save-as-file', callback),  onMenuClearOutput: (callback) => ipcRenderer.on('menu-clear-output', callback),
+  onMenuFormatCode: (callback) => ipcRenderer.on('menu-format-code', callback),
   onMenuExecuteCode: (callback) => ipcRenderer.on('menu-execute-code', callback),
   onMenuExecuteSelection: (callback) => ipcRenderer.on('menu-execute-selection', callback),
   
