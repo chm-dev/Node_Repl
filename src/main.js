@@ -211,6 +211,11 @@ ipcMain.handle('execute-code', async (event, originalCode) => {
     const util = require('util');
     const acorn = require('acorn');
 
+    let resolveCompletionSignal;
+    const completionSignalPromise = new Promise(resolve => {
+        resolveCompletionSignal = resolve;
+    });
+
     let codeToExecute = originalCode;
     const logs = [];
     
