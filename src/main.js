@@ -364,9 +364,21 @@ ipcMain.handle('execute-code', async (event, originalCode) => {
       clearInterval: global.clearInterval,
       __$REPL_COMPLETE$: () => {
         if (resolveCompletionSignal) {
-          // console.log('__$REPL_COMPLETE$__ called from VM'); // Debug
-          resolveCompletionSignal();
-          resolveCompletionSignal = null; // Prevent multiple resolutions
+            // console.log('__$REPL_COMPLETE$__ called from VM, scheduling resolve via nextTick'); // Debug
+            if (typeof process !== 'undefined' && typeof process.nextTick === 'function') {
+                process.nextTick(() => {
+                    if (resolveCompletionSignal) { // Re-check in case of rapid calls / state change
+                        // console.log('[VM process.nextTick] Calling resolveCompletionSignal'); // Debug
+                        resolveCompletionSignal();
+                        resolveCompletionSignal = null;
+                    }
+                });
+            } else {
+                // Fallback if process.nextTick is not available (should be in Node.js VM)
+                // console.log('[VM Fallback] Calling resolveCompletionSignal directly'); // Debug
+                resolveCompletionSignal();
+                resolveCompletionSignal = null;
+            }
         }
       },
     };
