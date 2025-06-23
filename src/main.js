@@ -1,6 +1,14 @@
 const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const EventEmitter = require('events');
+const crypto = require('crypto');
+
+const executionEvents = new EventEmitter();
+// Increase max listeners if many executions could happen, though typically it's one at a time.
+// Default is 10, which might be fine for a REPL.
+// executionEvents.setMaxListeners(100);
+
 
 let mainWindow;
 
