@@ -427,6 +427,19 @@ ipcMain.handle('execute-code', async (event, originalCode) => {
       // The logs array will contain whatever was logged before the error
       return { success: false, error: error.message, logs: logs };
     }
+  } catch (error) { // Catch for the outermost try block
+    console.error("Critical error in execute-code handler:", error);
+    // Ensure the completion signal is resolved in case of unexpected top-level error
+    if (resolveCompletionSignal) {
+      resolveCompletionSignal();
+      resolveCompletionSignal = null;
+    }
+    return {
+      success: false,
+      error: "A critical error occurred in the execution engine: " + error.message,
+      logs: logs // logs might be populated from earlier stages
+    };
+  }
 });
 
 // App event handlers
