@@ -375,10 +375,16 @@ ipcMain.handle('execute-code', async (event, originalCode) => {
 
     // Handle promises
     const finalResult = await Promise.resolve(result);
+
+    // Add a short delay to allow other async operations like setTimeout and promise.then()
+    // callbacks to complete and log before returning.
+    // This helps capture logs from async operations that might not be directly awaited
+    // by the main body of the executed script.
+    await new Promise(resolve => setTimeout(resolve, 2000)); // 2-second delay
     
     return {
       success: true,
-      logs: logs,
+      logs: logs, // The logs array should now contain entries from delayed operations
       value: finalResult
     };
     
