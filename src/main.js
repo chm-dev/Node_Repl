@@ -205,62 +205,145 @@ ipcMain.handle('save-file', async (event, { path, content }) => {
 });
 
 // IPC handler for code execution
-ipcMain.handle('execute-code', async (event, code) => {
+ipcMain.handle('execute-code', async (event, originalCode) => {
   try {
     const vm = require('vm');
     const util = require('util');
-      // Capture console output
+    const acorn = require('acorn');
+
+    let codeToExecute = originalCode;
     const logs = [];
-    let currentLine = 1;
     
-    // Function to estimate line number from stack trace
+    // Function to estimate line number from stack trace (fallback)
     function getCurrentLineFromStack() {
       const stack = new Error().stack;
       const lines = stack.split('\n');
-      // Look for the line that contains our eval context
       for (let i = 0; i < lines.length; i++) {
         if (lines[i].includes('<anonymous>:')) {
           const match = lines[i].match(/:(\d+):/);
           if (match) {
-            // Subtract 3 to account for the wrapper function lines
-            return Math.max(1, parseInt(match[1]) - 3);
+            return Math.max(1, parseInt(match[1]) - 3); // Adjust for wrapper
           }
         }
       }
-      return currentLine;
+      return null; // Fallback if line not found
     }
-    
+
     // Create a custom console
+    // It will be updated in the next step to accept line numbers.
+    // For now, the structure remains similar, but lineNum will be derived
+    // from injected arguments if available.
     const customConsole = {
       log: (...args) => {
-        const message = args.map(arg => 
+        let lineNumber = args[args.length -1];
+        let messageArgs = args;
+        if (typeof lineNumber === 'number' && args[args.length-2] === '__LINE_NUMBER_MARKER__') {
+          messageArgs = args.slice(0, -2);
+        } else {
+          lineNumber = getCurrentLineFromStack();
+          // If using fallback, ensure lineNumber is not the message itself if it's a number
+          if (typeof messageArgs[messageArgs.length -1] === 'number' && lineNumber === messageArgs[messageArgs.length -1]) {
+             //This case needs careful handling; for now, we assume injected line numbers are distinct
+          }
+        }
+        const message = messageArgs.map(arg =>
           typeof arg === 'object' ? util.inspect(arg, { colors: false, depth: 3 }) : String(arg)
         ).join(' ');
-        const lineNum = getCurrentLineFromStack();
-        logs.push({ type: 'log', message, line: lineNum });
+        logs.push({ type: 'log', message, line: lineNumber });
       },
       error: (...args) => {
-        const message = args.map(arg => 
+        let lineNumber = args[args.length -1];
+        let messageArgs = args;
+        if (typeof lineNumber === 'number' && args[args.length-2] === '__LINE_NUMBER_MARKER__') {
+          messageArgs = args.slice(0, -2);
+        } else {
+          lineNumber = getCurrentLineFromStack();
+        }
+        const message = messageArgs.map(arg =>
           typeof arg === 'object' ? util.inspect(arg, { colors: false, depth: 3 }) : String(arg)
         ).join(' ');
-        const lineNum = getCurrentLineFromStack();
-        logs.push({ type: 'error', message, line: lineNum });
+        logs.push({ type: 'error', message, line: lineNumber });
       },
       warn: (...args) => {
-        const message = args.map(arg => 
+        let lineNumber = args[args.length -1];
+        let messageArgs = args;
+        if (typeof lineNumber === 'number' && args[args.length-2] === '__LINE_NUMBER_MARKER__') {
+          messageArgs = args.slice(0, -2);
+        } else {
+          lineNumber = getCurrentLineFromStack();
+        }
+        const message = messageArgs.map(arg =>
           typeof arg === 'object' ? util.inspect(arg, { colors: false, depth: 3 }) : String(arg)
         ).join(' ');
-        const lineNum = getCurrentLineFromStack();
-        logs.push({ type: 'warn', message, line: lineNum });
+        logs.push({ type: 'warn', message, line: lineNumber });
       },
       info: (...args) => {
-        const message = args.map(arg => 
+        let lineNumber = args[args.length -1];
+        let messageArgs = args;
+        if (typeof lineNumber === 'number' && args[args.length-2] === '__LINE_NUMBER_MARKER__') {
+          messageArgs = args.slice(0, -2);
+        } else {
+          lineNumber = getCurrentLineFromStack();
+        }
+        const message = messageArgs.map(arg =>
           typeof arg === 'object' ? util.inspect(arg, { colors: false, depth: 3 }) : String(arg)
         ).join(' ');
-        const lineNum = getCurrentLineFromStack();
-        logs.push({ type: 'info', message, line: lineNum });
+        logs.push({ type: 'info', message, line: lineNumber });
       }
-    };// Create execution context
+    };
+
+    try {
+      const ast = acorn.parse(originalCode, { locations: true, ecmaVersion: 'latest' });
+      const patches = [];
+
+      function visit(node) {
+        if (!node) return;
+
+        if (node.type === 'CallExpression' &&
+            node.callee && node.callee.type === 'MemberExpression' &&
+            node.callee.object && node.callee.object.type === 'Identifier' && node.callee.object.name === 'console' &&
+            node.callee.property && node.callee.property.type === 'Identifier' &&
+            ['log', 'error', 'warn', 'info'].includes(node.callee.property.name)) {
+
+          const lineNumber = node.loc.start.line;
+          const endParenIndex = node.end - 1; // Index of the closing parenthesis
+
+          patches.push({
+            position: endParenIndex,
+            text: `, '__LINE_NUMBER_MARKER__', ${lineNumber}`
+          });
+        }
+
+        for (const key in node) {
+          if (node.hasOwnProperty(key)) {
+            const child = node[key];
+            if (typeof child === 'object' && child !== null) {
+              if (Array.isArray(child)) {
+                child.forEach(visit);
+              } else {
+                visit(child);
+              }
+            }
+          }
+        }
+      }
+
+      visit(ast);
+
+      // Apply patches from the end of the code to the beginning
+      patches.sort((a, b) => b.position - a.position);
+      let tempCode = originalCode;
+      patches.forEach(patch => {
+        tempCode = tempCode.slice(0, patch.position) + patch.text + tempCode.slice(patch.position);
+      });
+      codeToExecute = tempCode;
+
+    } catch (parseOrTransformError) {
+      console.error("Error transforming code for line numbers:", parseOrTransformError);
+      // If transformation fails, use original code. Logging might be inaccurate.
+      codeToExecute = originalCode;
+    }
+
     const context = vm.createContext({
       console: customConsole,
       require: require,
@@ -279,7 +362,7 @@ ipcMain.handle('execute-code', async (event, code) => {
     const result = vm.runInContext(`
       (async () => {
         try {
-          ${code}
+          ${codeToExecute}
         } catch (error) {
           console.error(error.message);
           throw error;
