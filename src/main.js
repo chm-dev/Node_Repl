@@ -214,6 +214,7 @@ ipcMain.handle('execute-code', async (event, originalCode) => {
     let resolveCompletionSignal;
     const completionSignalPromise = new Promise(resolve => {
         resolveCompletionSignal = resolve;
+        // console.log('completionSignalPromise created'); // Debug
     });
 
     let codeToExecute = originalCode;
@@ -349,7 +350,7 @@ ipcMain.handle('execute-code', async (event, originalCode) => {
       codeToExecute = originalCode;
     }
 
-    const context = vm.createContext({
+    const vmContextObject = {
       console: customConsole,
       require: require,
       process: process,
@@ -357,49 +358,75 @@ ipcMain.handle('execute-code', async (event, originalCode) => {
       Buffer: Buffer,
       __dirname: __dirname,
       __filename: __filename,
-      setTimeout: setTimeout,
-      setInterval: setInterval,
-      clearTimeout: clearTimeout,
-      clearInterval: clearInterval
-    });
+      setTimeout: global.setTimeout,
+      setInterval: global.setInterval,
+      clearTimeout: global.clearTimeout,
+      clearInterval: global.clearInterval,
+      __$REPL_COMPLETE$: () => {
+        if (resolveCompletionSignal) {
+          // console.log('__$REPL_COMPLETE$__ called from VM'); // Debug
+          resolveCompletionSignal();
+          resolveCompletionSignal = null; // Prevent multiple resolutions
+        }
+      },
+    };
+    const context = vm.createContext(vmContextObject);
 
-    // Execute the code without line instrumentation to avoid syntax issues
-    const result = vm.runInContext(`
+    const wrappedUserCode = `
       (async () => {
         try {
-          ${codeToExecute}
-        } catch (error) {
-          console.error(error.message);
-          throw error;
+          // The user's actual code (already transformed for line numbers) goes here.
+          // If it's an expression, its result will be awaited.
+          return await (async () => { ${codeToExecute} })();
+        } catch (err) {
+          // This will ensure the error is logged if not already by user code
+          if (typeof console !== 'undefined' && typeof console.error === 'function') {
+            console.error(String(err.stack || err.message || err), '__LINE_NUMBER_MARKER__', -1); // -1 for internal/wrapper errors
+          }
+          throw err; // Rethrow for outer handler
+        } finally {
+          // Ensure completion is signaled
+          if (typeof __$REPL_COMPLETE$__ === 'function') {
+            __$REPL_COMPLETE$__();
+          }
         }
-      })()
-    `, context, {
-      timeout: 10000,
-      displayErrors: true
-    });
+      })();
+    `;
 
-    // Handle promises
-    const finalResult = await Promise.resolve(result);
+    let finalResult;
+    try {
+      const resultFromVM = vm.runInContext(wrappedUserCode, context, {
+        timeout: 10000, // VM execution timeout
+        displayErrors: true
+      });
+      finalResult = await Promise.resolve(resultFromVM);
 
-    // Add a short delay to allow other async operations like setTimeout and promise.then()
-    // callbacks to complete and log before returning.
-    // This helps capture logs from async operations that might not be directly awaited
-    // by the main body of the executed script.
-    await new Promise(resolve => setTimeout(resolve, 2000)); // 2-second delay
-    
-    return {
-      success: true,
-      logs: logs, // The logs array should now contain entries from delayed operations
-      value: finalResult
-    };
-    
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message,
-      logs: []
-    };
-  }
+      // Wait for the completion signal or a timeout
+      // console.log('Waiting for completion signal or 10s timeout...'); // Debug
+      await Promise.race([
+        completionSignalPromise,
+        new Promise(resolve => setTimeout(() => {
+          // console.log('Race: Signal wait timed out after 10s'); // Debug
+          if (resolveCompletionSignal) { // If __$REPL_COMPLETE$__ was never called
+            resolveCompletionSignal(); // Resolve the signal promise anyway to proceed
+            resolveCompletionSignal = null;
+          }
+          resolve();
+        }, 10000)) // Overall operation timeout for signal
+      ]);
+      // console.log('Proceeding after signal or timeout.'); // Debug
+
+      return { success: true, logs: logs, value: finalResult };
+
+    } catch (error) {
+      // console.error('Outer catch in execute-code:', error.message); // Debug
+      if (resolveCompletionSignal) { // Ensure signal promise resolves if an error occurs
+        resolveCompletionSignal();
+        resolveCompletionSignal = null;
+      }
+      // The logs array will contain whatever was logged before the error
+      return { success: false, error: error.message, logs: logs };
+    }
 });
 
 // App event handlers
